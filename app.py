@@ -4,38 +4,7 @@ import tempfile
 import os
 import time
 
-# --- INÍCIO DA ZONA DE DIAGNÓSTICO ---
-import importlib.metadata
 
-with st.expander("🛠️ CLIQUE AQUI PARA DIAGNÓSTICO (VERSÕES E MODELOS)"):
-    # 1. Ver a versão da biblioteca instalada
-    try:
-        version = importlib.metadata.version("google-generativeai")
-        st.write(f"📦 **Versão do google-generativeai:** `{version}`")
-        st.info("Para o Flash funcionar, a versão tem de ser **0.5.0** ou superior (idealmente **0.7.2**).")
-    except:
-        st.error("Biblioteca google-generativeai não encontrada!")
-
-    # 2. Listar todos os pacotes instalados (pip freeze)
-    if st.checkbox("Mostrar todas as bibliotecas instaladas"):
-        import subprocess
-        result = subprocess.run(['pip', 'freeze'], stdout=subprocess.PIPE)
-        st.code(result.stdout.decode('utf-8'))
-
-    # 3. Testar conexão com o Google e Listar Modelos
-    if st.button("📡 Testar Conexão e Listar Modelos Disponíveis"):
-        try:
-            st.write("A contactar a Google...")
-            count = 0
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    st.write(f"- `{m.name}`")
-                    count += 1
-            st.success(f"Encontrados {count} modelos disponíveis.")
-        except Exception as e:
-            st.error(f"Erro ao listar modelos: {e}")
-            st.write("Verifique se a API Key está correta nos Secrets.")
-# --- FIM DA ZONA DE DIAGNÓSTICO ---
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
