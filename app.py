@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS
+# Estilo CSS para parecer uma App Nativa
 st.markdown("""
     <style>
         #MainMenu {visibility: hidden;}
@@ -49,7 +49,7 @@ def gerar_ata_inteligente(files):
         for file in files:
             # Criar ficheiro temporário
             suffix = os.path.splitext(file.name)[1].lower()
-            if not suffix: suffix = ".mp3"
+            if not suffix: suffix = ".mp3" # Assume mp3 se não tiver extensão
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(file.getvalue())
@@ -74,8 +74,7 @@ def gerar_ata_inteligente(files):
         # PASSO C: Gerar a Ata
         status.write("✍️ A redigir a ata profissional...")
         
-        # ATUALIZAÇÃO: Usando o modelo mais recente e estável
-        # Substitua a linha antiga por esta exata:
+        # MODELO ATUALIZADO E RÁPIDO
         model = genai.GenerativeModel("models/gemini-2.5-flash")
         
         prompt_sistema = """
@@ -102,17 +101,13 @@ def gerar_ata_inteligente(files):
         
         # Apagar ficheiros da nuvem do Google
         for g_file in arquivos_gemini:
-            try:
-                genai.delete_file(g_file.name)
-            except:
-                pass # Ignora erro se já tiver sido apagado
+            try: genai.delete_file(g_file.name)
+            except: pass
         
         # Apagar ficheiros temporários do sistema
         for path in arquivos_para_apagar:
-            try:
-                os.remove(path)
-            except:
-                pass
+            try: os.remove(path)
+            except: pass
             
         return response.text
 
@@ -127,10 +122,25 @@ st.markdown("Transforme gravações de reuniões em **Atas Formais** em segundos
 
 with st.container():
     st.write("### 1. Carregar Gravações")
+    
+    # --- AJUDA PARA MOBILE ---
+    with st.expander("📱 Está no telemóvel? Leia isto se não conseguir carregar."):
+        st.markdown("""
+        **iPhone (iOS):**
+        1. Vá à app "Gravações" (Voice Memos).
+        2. Clique nos "..." na gravação e escolha **"Guardar em Ficheiros"**.
+        3. Volte aqui e selecione o ficheiro.
+        
+        **WhatsApp:**
+        1. Selecione o áudio na conversa.
+        2. Clique em Partilhar > **Guardar no Dispositivo/Downloads**.
+        """)
+    
+    # FILE UPLOADER SEM RESTRIÇÃO DE TIPO (Correção para Mobile)
     uploaded_files = st.file_uploader(
-        "Selecione os ficheiros (Pode carregar vários: WhatsApp, MP3, M4A...)", 
-        type=['mp3', 'wav', 'm4a', 'ogg', 'opus'], 
+        "Selecione os ficheiros aqui:", 
         accept_multiple_files=True
+        # type removido propositadamente para compatibilidade mobile
     )
 
 if uploaded_files:
@@ -140,15 +150,13 @@ if uploaded_files:
     
     st.warning(
         "⚠️ **Aviso de Privacidade:** Esta ferramenta utiliza a IA da Google para processar o áudio. "
-        "Não carregue gravações que contenham segredos de estado, dados médicos sensíveis ou "
-        "informações financeiras confidenciais."
+        "Não carregue gravações com dados confidenciais extremos."
     )
     
-    autorizacao = st.checkbox("Declaro que tenho autorização dos participantes para processar esta gravação.")
+    autorizacao = st.checkbox("Tenho autorização para processar esta gravação.")
     
     if autorizacao:
         if st.button("📝 CRIAR ATA AGORA", type="primary"):
-            # CORREÇÃO AQUI: O nome da função deve ser igual ao definido lá em cima
             texto_final = gerar_ata_inteligente(uploaded_files)
             
             if texto_final:
@@ -163,4 +171,4 @@ if uploaded_files:
                     mime="text/plain"
                 )
     else:
-        st.caption("👆 Por favor, aceite os termos acima para desbloquear o botão de gerar a ata.")
+        st.caption("👆 Aceite os termos acima para continuar.")
