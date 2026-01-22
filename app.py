@@ -163,3 +163,25 @@ if uploaded_files:
                 )
     else:
         st.caption("👆 Por favor, aceite os termos acima para desbloquear o botão de gerar a ata.")
+
+# --- COLAR NO FINAL DO APP.PY PARA TESTE ---
+st.divider()
+st.subheader("🛠️ Diagnóstico: Modelos Disponíveis")
+
+try:
+    st.write("A consultar a Google...")
+    lista_modelos = []
+    
+    # Percorre todos os modelos disponíveis na sua conta
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            lista_modelos.append(m.name)
+            
+    if lista_modelos:
+        st.success("Copie um destes nomes para a linha 97 do seu código:")
+        st.code("\n".join(lista_modelos))
+    else:
+        st.error("Nenhum modelo encontrado. Verifique se a API Key é válida.")
+
+except Exception as e:
+    st.error(f"Erro ao listar modelos: {e}")
