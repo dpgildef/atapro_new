@@ -4,8 +4,6 @@ import tempfile
 import os
 import time
 
-
-
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="AtaPro.pt",
@@ -14,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS para parecer uma App Nativa no telemóvel (esconde menus desnecessários)
+# Estilo CSS
 st.markdown("""
     <style>
         #MainMenu {visibility: hidden;}
@@ -30,7 +28,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. AUTENTICAÇÃO GOOGLE GEMINI ---
-# Tenta carregar a chave dos "Secrets" do Streamlit
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
@@ -61,7 +58,7 @@ def gerar_ata_inteligente(files):
             # Upload
             g_file = genai.upload_file(tmp_path)
             arquivos_gemini.append(g_file)
-            arquivos_para_apagar.append(tmp_path) # Marcar para apagar do disco local
+            arquivos_para_apagar.append(tmp_path) 
             status.write(f"✅ Recebido: {file.name}")
 
         # PASSO B: Esperar Processamento do Áudio
@@ -77,7 +74,8 @@ def gerar_ata_inteligente(files):
         # PASSO C: Gerar a Ata
         status.write("✍️ A redigir a ata profissional...")
         
-        model = genai.GenerativeModel("models/gemini-flash-latest")
+        # ATUALIZAÇÃO: Usando o modelo mais recente e estável
+        model = genai.GenerativeModel("gemini-1.5-flash")
         
         prompt_sistema = """
         Tu és um Secretário Executivo de topo em Portugal.
@@ -103,10 +101,17 @@ def gerar_ata_inteligente(files):
         
         # Apagar ficheiros da nuvem do Google
         for g_file in arquivos_gemini:
-            genai.delete_file(g_file.name)
+            try:
+                genai.delete_file(g_file.name)
+            except:
+                pass # Ignora erro se já tiver sido apagado
+        
         # Apagar ficheiros temporários do sistema
         for path in arquivos_para_apagar:
-            os.remove(path)
+            try:
+                os.remove(path)
+            except:
+                pass
             
         return response.text
 
@@ -127,14 +132,10 @@ with st.container():
         accept_multiple_files=True
     )
 
-    # ... (O código acima do 'file_uploader' fica igual) ...
-
 if uploaded_files:
-    # Mostra quantos ficheiros foram carregados
     st.info(f"📂 {len(uploaded_files)} ficheiros prontos para processar.")
     
-    # --- NOVO BLOCO DE SEGURANÇA (RGPD) ---
-    st.divider() # Cria uma linha separadora visual
+    st.divider()
     
     st.warning(
         "⚠️ **Aviso de Privacidade:** Esta ferramenta utiliza a IA da Google para processar o áudio. "
@@ -142,16 +143,12 @@ if uploaded_files:
         "informações financeiras confidenciais."
     )
     
-    # A variável 'autorizacao' fica True se a caixa for marcada, False se não for.
     autorizacao = st.checkbox("Declaro que tenho autorização dos participantes para processar esta gravação.")
     
-    # --- FIM DO BLOCO DE SEGURANÇA ---
-
-    # O botão agora está indentado para a direita.
-    # Só é mostrado SE (if) a autorização for Verdadeira.
     if autorizacao:
         if st.button("📝 CRIAR ATA AGORA", type="primary"):
-            texto_final = gerar_ata(uploaded_files)
+            # CORREÇÃO AQUI: O nome da função deve ser igual ao definido lá em cima
+            texto_final = gerar_ata_inteligente(uploaded_files)
             
             if texto_final:
                 st.markdown("---")
@@ -165,5 +162,4 @@ if uploaded_files:
                     mime="text/plain"
                 )
     else:
-        # Se a caixa não estiver marcada, mostra esta mensagem pequena
         st.caption("👆 Por favor, aceite os termos acima para desbloquear o botão de gerar a ata.")
