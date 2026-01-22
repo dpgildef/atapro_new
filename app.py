@@ -127,22 +127,43 @@ with st.container():
         accept_multiple_files=True
     )
 
-    if uploaded_files:
-        st.info(f"📁 {len(uploaded_files)} ficheiros selecionados prontos para processar.")
-        
-        st.write("### 2. Gerar Documento")
+    # ... (O código acima do 'file_uploader' fica igual) ...
+
+if uploaded_files:
+    # Mostra quantos ficheiros foram carregados
+    st.info(f"📂 {len(uploaded_files)} ficheiros prontos para processar.")
+    
+    # --- NOVO BLOCO DE SEGURANÇA (RGPD) ---
+    st.divider() # Cria uma linha separadora visual
+    
+    st.warning(
+        "⚠️ **Aviso de Privacidade:** Esta ferramenta utiliza a IA da Google para processar o áudio. "
+        "Não carregue gravações que contenham segredos de estado, dados médicos sensíveis ou "
+        "informações financeiras confidenciais."
+    )
+    
+    # A variável 'autorizacao' fica True se a caixa for marcada, False se não for.
+    autorizacao = st.checkbox("Declaro que tenho autorização dos participantes para processar esta gravação.")
+    
+    # --- FIM DO BLOCO DE SEGURANÇA ---
+
+    # O botão agora está indentado para a direita.
+    # Só é mostrado SE (if) a autorização for Verdadeira.
+    if autorizacao:
         if st.button("📝 CRIAR ATA AGORA", type="primary"):
-            texto_ata = gerar_ata_inteligente(uploaded_files)
+            texto_final = gerar_ata(uploaded_files)
             
-            if texto_ata:
+            if texto_final:
                 st.markdown("---")
-                st.subheader("📄 Resultado Final")
-                st.markdown(texto_ata)
+                st.subheader("📄 Resultado da Ata")
+                st.markdown(texto_final)
                 
-                # Botão de Download
                 st.download_button(
                     label="📥 Descarregar Ata (.txt)",
-                    data=texto_ata,
-                    file_name="Ata_Reuniao_AtaPro.txt",
+                    data=texto_final,
+                    file_name="Ata_Reuniao.txt",
                     mime="text/plain"
                 )
+    else:
+        # Se a caixa não estiver marcada, mostra esta mensagem pequena
+        st.caption("👆 Por favor, aceite os termos acima para desbloquear o botão de gerar a ata.")
