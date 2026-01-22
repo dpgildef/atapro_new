@@ -75,7 +75,8 @@ def gerar_ata_inteligente(files):
         status.write("✍️ A redigir a ata profissional...")
         
         # ATUALIZAÇÃO: Usando o modelo mais recente e estável
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
+        # Substitua a linha antiga por esta exata:
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
         
         prompt_sistema = """
         Tu és um Secretário Executivo de topo em Portugal.
