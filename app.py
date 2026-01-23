@@ -3,24 +3,25 @@ import google.generativeai as genai
 import tempfile
 import os
 import time
-from fpdf import FPDF
+from io import BytesIO
+from docx import Document 
+from docx.shared import Pt, RGBColor
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="AtaPro.pt",
-    page_icon="🇵🇹",
+    page_title="AtaPro.pt | Condomínios",
+    page_icon="🏢",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- ESTILO CSS (Design e Traduções) ---
+# --- ESTILO CSS ---
 st.markdown("""
     <style>
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         header {visibility: hidden;}
         
-        /* Botões grandes e profissionais */
         .stButton>button {
             width: 100%;
             border-radius: 8px;
@@ -29,7 +30,7 @@ st.markdown("""
             font-size: 16px;
         }
 
-        /* TRUQUE CSS PARA TRADUZIR O UPLOAD (Visual) */
+        /* TRUQUE CSS PARA TRADUZIR O UPLOAD */
         [data-testid='stFileUploaderDropzone'] div div span {display: none;}
         [data-testid='stFileUploaderDropzone'] div div::after {
            content: "Arraste e largue os ficheiros aqui";
@@ -40,28 +41,33 @@ st.markdown("""
            content: "Limite: 200MB por ficheiro • MP3, M4A, WAV";
            font-size: 0.9em; display: block; text-align: center; margin-top: 5px; color: #333;
         }
+        
+        /* Caixa de Aviso Legal */
+        .legal-box {
+            font-size: 0.85em;
+            background-color: #f0f7fb;
+            border-left: 4px solid #0056b3;
+            padding: 12px;
+            margin-top: 10px;
+            color: #2c3e50;
+        }
     </style>
 """, unsafe_allow_html=True)
 
 # --- 2. SISTEMA DE LOGIN ---
 def check_password():
-    """Gere o login e retorna o nome do utilizador."""
-    
     if st.session_state.get("password_correct", False):
         return st.session_state.get("user_name", "Utilizador")
 
-    # Ecrã de Login
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.title("⚖️ AtaPro | Área Reservada")
-    st.info("Plataforma exclusiva para subscritores autorizados.")
+    st.title("🏢 AtaPro | Condomínios")
+    st.info("Área exclusiva para Administradores de Condomínio.")
     
     password_input = st.text_input("Introduza a sua Chave de Acesso:", type="password")
     
     if st.button("🔓 Entrar", type="primary"):
         try:
-            # Procura a senha nos Secrets
             passwords = st.secrets["passwords"]
-            # Mapeia senha -> nome
             senha_para_nome = {v: k for k, v in passwords.items()}
             
             if password_input in senha_para_nome:
@@ -73,18 +79,18 @@ def check_password():
             else:
                 st.error("❌ Chave de acesso incorreta.")
         except KeyError:
-            st.error("Erro de configuração interna (Secrets). Contacte o suporte.")
-
+            st.error("Erro de configuração interna (Secrets).")
     return None
 
-# VERIFICA SE ESTÁ LOGADO
 nome_utilizador = check_password()
 if not nome_utilizador:
     st.stop()
 
 # ==========================================
-# APP PRINCIPAL (SÓ CARREGA APÓS LOGIN)
+# LÓGICA DE ESTADO (MEMÓRIA)
 # ==========================================
+if "texto_ata_final" not in st.session_state:
+    st.session_state["texto_ata_final"] = None
 
 # --- 3. CONFIGURAÇÃO API ---
 try:
@@ -94,44 +100,43 @@ except Exception:
     st.error("⚠️ ERRO CRÍTICO: Chave de API Google em falta.")
     st.stop()
 
-# --- 4. CLASSE PDF (MARCA DE ÁGUA) ---
-class PDF(FPDF):
-    def header(self):
-        # Marca de água diagonal
-        self.set_font('Arial', 'B', 50)
-        self.set_text_color(240, 240, 240) # Cinzento muito claro (quase branco)
-        self.rotate(45, x=105, y=148)
-        self.text(30, 190, 'AtaPro.pt - CONFIDENCIAL')
-        self.rotate(0) # Reset rotação
-
-def criar_pdf(texto_ata):
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=11)
-    pdf.set_text_color(0, 0, 0) # Texto preto
+# --- 4. FUNÇÃO GERADORA DE WORD (.docx) ---
+def criar_word(texto_ata):
+    doc = Document()
     
-    # Tratamento de caracteres especiais (PT)
-    try:
-        texto_limpo = texto_ata.encode('latin-1', 'replace').decode('latin-1')
-    except:
-        texto_limpo = texto_ata # Fallback
+    # Título Principal
+    heading = doc.add_heading('ATA DA ASSEMBLEIA DE CONDOMÍNIO', 0)
+    heading.alignment = 1 # Centro
     
-    pdf.multi_cell(0, 7, txt=texto_limpo)
-    return pdf.output(dest='S').encode('latin-1')
+    # Adiciona o texto gerado
+    for paragrafo in texto_ata.split('\n'):
+        if paragrafo.strip():
+            doc.add_paragraph(paragrafo)
+    
+    # --- RODAPÉ LEGAL (ATUALIZADO PARA CONDOMÍNIOS) ---
+    doc.add_paragraph("_" * 50)
+    legal_note = doc.add_paragraph()
+    run = legal_note.add_run("CONFORMIDADE LEGAL:\nA presente ata foi elaborada nos termos do Artigo 1.º do Decreto-Lei n.º 268/94, com as alterações introduzidas pela Lei n.º 8/2022, de 10 de janeiro, constituindo título executivo para todos os efeitos legais.")
+    run.font.size = Pt(8)
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(80, 80, 80)
+            
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
 
 # --- 5. PROCESSAMENTO DE ÁUDIO (IA) ---
 def processar_ata(files):
-    status = st.status("⚙️ A iniciar processamento seguro...", expanded=True)
+    status = st.status("⚙️ A processar ata de condomínio...", expanded=True)
     arquivos_temp = []
     arquivos_gemini = []
     
     try:
-        # ORDENAR FICHEIROS (Parte 1, Parte 2...)
-        # Garante que a ata segue a cronologia correta se houver vários áudios
         files.sort(key=lambda x: x.name)
         
         # A: Upload
-        status.write(f"📤 A carregar {len(files)} ficheiro(s) por ordem cronológica...")
+        status.write(f"📤 A carregar {len(files)} ficheiro(s)...")
         for file in files:
             suffix = os.path.splitext(file.name)[1].lower()
             if not suffix: suffix = ".mp3"
@@ -146,43 +151,51 @@ def processar_ata(files):
             status.write(f"✅ Recebido: {file.name}")
 
         # B: Espera
-        status.write("🎧 A IA está a ouvir e a transcrever o conteúdo...")
+        status.write("🎧 A analisar as deliberações dos condóminos...")
         for g_file in arquivos_gemini:
             while g_file.state.name == "PROCESSING":
                 time.sleep(2)
                 g_file = genai.get_file(g_file.name)
             if g_file.state.name == "FAILED":
-                raise Exception(f"Erro ao ler o ficheiro {g_file.name}. Formato inválido.")
+                raise Exception(f"Erro ao ler o ficheiro {g_file.name}.")
 
         # C: Geração
-        status.write("✍️ A redigir a ata jurídica (PT-PT)...")
+        status.write("✍️ A redigir a ata segundo a Lei n.º 8/2022...")
         model = genai.GenerativeModel("models/gemini-2.5-flash")
         
+        # --- PROMPT ESPECÍFICO PARA CONDOMÍNIOS ---
         prompt = """
-        Tu és um Secretário Jurídico Sénior. A tua tarefa é ouvir o áudio e redigir uma ATA FORMAL.
-        
-        REGRAS DE OURO:
-        - Usa Português de Portugal (PT-PT) formal.
-        - Sê isento e objetivo.
-        - Se existirem múltiplos ficheiros, trata-os como uma sequência contínua da mesma reunião.
+        Tu és um Administrador de Condomínios profissional em Portugal. 
+        A tua tarefa é redigir uma ATA DE ASSEMBLEIA DE CONDOMÍNIO rigorosa.
+
+        BASE LEGAL:
+        Respeita o Decreto-Lei n.º 268/94 e a Lei n.º 8/2022.
 
         ESTRUTURA OBRIGATÓRIA:
-        1. TÍTULO: "ATA [Inserir Número/Ano se dito, ou deixar ___]"
-        2. CABEÇALHO: "Aos [Dia] dias do mês de [Mês] de [Ano], pelas [Hora] horas, reuniu-se [Entidade/Local]..."
-        3. PRESENÇAS: Lista de nomes identificados.
-        4. ORDEM DE TRABALHOS: Tópicos principais.
-        5. DELIBERAÇÕES: Descrição detalhada do que foi discutido e decidido.
-        6. ENCERRAMENTO: "Nada mais havendo a tratar, a sessão foi encerrada às [Hora]..."
+        1. TÍTULO: "ATA N.º [Ano]/[N.º]"
+        2. CABEÇALHO: 
+           - "Aos [Dia] dias de [Mês] de [Ano], reuniu-se a Assembleia de Condóminos do prédio sito em [Local]..."
+           - Indicar se é Ordinária ou Extraordinária.
+           - Indicar quem presidiu à mesa (Presidente/Secretário).
+        3. PRESENÇAS: Listar Condóminos presentes e representados (se dito no áudio).
+        4. ORDEM DE TRABALHOS: Pontos exatos da convocatória.
+        5. DELIBERAÇÕES (Muito Importante):
+           - Para cada ponto, descrever a discussão e a VOTAÇÃO.
+           - Usar termos: "Aprovado por unanimidade", "Aprovado por maioria", ou "Rejeitado".
+        6. ENCERRAMENTO: menção de que a ata vai ser assinada.
         
-        Nota: Se faltarem dados (como data ou hora exata), deixa um espaço sublinhado (_______) para preenchimento manual posterior.
+        IMPORTANTE: 
+        - Escreve em PT-PT.
+        - Sê objetivo. Identifica frações (ex: 1º Esq, R/C Drt) se forem mencionadas.
+        - Não uses Markdown complexo, usa texto limpo.
         """
         
         response = model.generate_content([prompt] + arquivos_gemini)
-        texto_final = response.text
+        texto_gerado = response.text
         
-        status.update(label="✅ Documento Gerado!", state="complete", expanded=False)
+        status.update(label="✅ Ata de Condomínio Gerada!", state="complete", expanded=False)
         
-        # D: Limpeza de Segurança (RGPD)
+        # D: Limpeza
         for g_file in arquivos_gemini:
             try: genai.delete_file(g_file.name)
             except: pass
@@ -190,7 +203,7 @@ def processar_ata(files):
             try: os.remove(path)
             except: pass
             
-        return texto_final
+        return texto_gerado
 
     except Exception as e:
         status.update(label="❌ Erro no processamento", state="error")
@@ -199,10 +212,9 @@ def processar_ata(files):
 
 # --- 6. INTERFACE DE UTILIZADOR ---
 
-# Cabeçalho
 col1, col2 = st.columns([3, 1])
 with col1:
-    st.title("🇵🇹 AtaPro.pt")
+    st.title("🏢 AtaPro | Condomínios")
     st.markdown(f"**Bem-vindo, {nome_utilizador}.**")
 with col2:
     if st.button("Sair 🔒"):
@@ -210,87 +222,87 @@ with col2:
         st.session_state["user_name"] = None
         st.rerun()
 
-# Instruções de Gravação (Importante para qualidade)
-with st.expander("🎙️ COMO GRAVAR UMA REUNIÃO VÁLIDA (Ler Antes)", expanded=False):
-    st.markdown("""
-    Para garantir uma ata perfeita, comece a gravação dizendo:
-    1.  **"Hoje é dia [X], são [Y] horas."**
-    2.  **"Estamos reunidos em [Local] para a reunião de [Nome da Entidade]."**
-    3.  **"Estão presentes: [Nome 1], [Nome 2], [Nome 3]..."**
-    4.  **"A ordem de trabalhos é..."**
+# --- MOSTRAR RESULTADO SE JÁ EXISTIR NA MEMÓRIA ---
+if st.session_state["texto_ata_final"]:
+    st.success("✅ A sua ata está pronta e guardada abaixo.")
     
-    *Dica: Coloque o telemóvel no centro da mesa.*
-    """)
-
-st.divider()
-
-# Área de Upload
-st.write("### 1. Carregar Gravações")
-
-# Instruções Rápidas (Mobile)
-with st.expander("📱 Dificuldade no iPhone/WhatsApp? Clique aqui."):
-    st.info("No iPhone ou WhatsApp, escolha a opção **'Partilhar' > 'Guardar em Ficheiros'**. Depois volte aqui e selecione o ficheiro dessa pasta.")
-
-# Uploader (Sem restrição de 'type' para mobile funcionar, mas avisa sobre limite)
-uploaded_files = st.file_uploader(
-    "Selecione os ficheiros de áudio:", 
-    accept_multiple_files=True,
-    help="Se a reunião tiver várias partes, carregue todas de uma vez. A IA vai ordená-las."
-)
-
-if uploaded_files:
-    # Aviso sobre tamanho (já que mantivemos o limite de 200MB)
-    st.caption(f"📂 {len(uploaded_files)} ficheiro(s) selecionado(s). A IA irá processá-los por ordem alfabética.")
-    st.warning("⚠️ Nota: O limite é **200MB por ficheiro**. Se tiver um ficheiro WAV muito grande, converta para MP3 antes de enviar.")
-
-    # --- PRIVACIDADE E TERMOS ---
-    st.markdown("---")
-    st.subheader("🛡️ Privacidade e Termos Legais")
-    
-    # Texto de privacidade com cor visível (sem estilo 'grey')
+    # Aviso Legal Atualizado
     st.markdown("""
-    <div>
-    Ao prosseguir, o utilizador declara estar ciente que:
-    <ul>
-        <li><strong>Segurança:</strong> O áudio é processado de forma encriptada pelos servidores Enterprise da Google.</li>
-        <li><strong>Eliminação de Dados:</strong> Os ficheiros de áudio e as atas geradas são <strong>apagados imediatamente</strong> dos nossos servidores após a entrega.</li>
-        <li><strong>Sem Histórico:</strong> O AtaPro.pt não mantém cópias. Se fechar esta página sem descarregar, o documento perde-se.</li>
-        <li><strong>Validade:</strong> O documento gerado é um auxiliar administrativo. Deve ser validado e assinado pelos intervenientes para efeitos legais.</li>
-    </ul>
+    <div class="legal-box">
+    ⚖️ <strong>Conformidade Legal (Portugal):</strong><br> 
+    Ata gerada de acordo com o <strong>Artigo 1.º do Decreto-Lei n.º 268/94</strong> 
+    e atualizações da <strong>Lei n.º 8/2022</strong> (Regime da Propriedade Horizontal).
     </div>
     """, unsafe_allow_html=True)
     
-    autorizacao = st.checkbox("Li e aceito a Política de Privacidade e confirmo ter autorização de todos os intervenientes.")
-
-    if autorizacao:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("📝 GERAR ATA OFICIAL", type="primary"):
-            texto_ata = processar_ata(uploaded_files)
+    st.write("### 📥 Descarregar Documento")
+    
+    # Converter para Word
+    word_file = criar_word(st.session_state["texto_ata_final"])
+    
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        st.download_button(
+            label="📄 Descarregar em WORD (.docx)",
+            data=word_file,
+            file_name="Ata_Condominio.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            type="primary"
+        )
+    with col_d2:
+        if st.button("🔄 Começar Nova Ata"):
+            st.session_state["texto_ata_final"] = None
+            st.rerun()
             
-            if texto_ata:
-                st.success("Processo concluído com sucesso!")
-                
-                # Pré-visualização
-                with st.expander("👁️ Pré-visualizar Texto"):
-                    st.markdown(texto_ata)
-                
-                # Botões de Download
-                pdf_bytes = criar_pdf(texto_ata)
-                
-                col_down1, col_down2 = st.columns(2)
-                with col_down1:
-                    st.download_button(
-                        label="📄 Descarregar PDF (Oficial)",
-                        data=pdf_bytes,
-                        file_name="Ata_Oficial.pdf",
-                        mime="application/pdf"
-                    )
-                with col_down2:
-                     st.download_button(
-                        label="📝 Descarregar Editável (.txt)",
-                        data=texto_ata,
-                        file_name="Ata_Editavel.txt",
-                        mime="text/plain"
-                    )
-    else:
-        st.info("👆 Por favor, aceite os termos acima para desbloquear o botão de geração.")
+    with st.expander("👁️ Ver Texto da Ata (Pré-visualização)"):
+        st.markdown(st.session_state["texto_ata_final"])
+
+# --- MOSTRAR UPLOAD SE AINDA NÃO HOUVER ATA ---
+else:
+    with st.expander("🎙️ GUIA: COMO GRAVAR ASSEMBLEIA DE CONDOMÍNIO", expanded=False):
+        st.markdown("""
+        Para validade legal (Lei n.º 8/2022), comece a gravação dizendo:
+        1.  **"Assembleia do Condomínio do prédio sito em [Morada]..."**
+        2.  **"Hoje é dia [X], hora [Y]."**
+        3.  **"Presenças: Fração A (Sr. João), Fração B (Sra. Maria)..."**
+        4.  **"Ponto 1 da Ordem de Trabalhos: [Assunto]..."**
+        """)
+
+    st.write("### 1. Carregar Gravações")
+
+    with st.expander("📱 Ajuda para iPhone/WhatsApp"):
+        st.info("No iPhone ou WhatsApp: 'Partilhar' > 'Guardar em Ficheiros'.")
+
+    uploaded_files = st.file_uploader(
+        "Selecione os ficheiros de áudio:", 
+        accept_multiple_files=True
+    )
+
+    if uploaded_files:
+        st.caption(f"📂 {len(uploaded_files)} ficheiro(s) selecionado(s).")
+        st.warning("⚠️ Nota: O limite é **200MB por ficheiro**.")
+
+        st.markdown("---")
+        st.subheader("🛡️ Privacidade e Termos")
+        
+        st.markdown("""
+        <div>
+        <ul>
+            <li><strong>Segurança:</strong> Áudio processado via Google Enterprise (encriptado).</li>
+            <li><strong>Eliminação:</strong> Dados apagados imediatamente após a geração.</li>
+            <li><strong>Sem Histórico:</strong> Não guardamos cópias das atas.</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        autorizacao = st.checkbox("Li e aceito a Política de Privacidade.")
+
+        if autorizacao:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("📝 GERAR ATA DE CONDOMÍNIO", type="primary"):
+                resultado = processar_ata(uploaded_files)
+                if resultado:
+                    st.session_state["texto_ata_final"] = resultado
+                    st.rerun() 
+        else:
+            st.info("👆 Aceite os termos para continuar.")
