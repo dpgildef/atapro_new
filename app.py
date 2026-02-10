@@ -45,11 +45,11 @@ st.markdown("""
         /* Caixa de Aviso Legal */
         .legal-box {
             font-size: 0.85em;
-            background-color: #f0f7fb;
-            border-left: 4px solid #0056b3;
+            background-color: #fdf2f2; /* Cor ligeiramente avermelhada para alerta */
+            border-left: 4px solid #dc3545;
             padding: 12px;
             margin-top: 10px;
-            color: #2c3e50;
+            color: #5a1e1e;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -113,13 +113,20 @@ def criar_word(texto_ata):
         if paragrafo.strip():
             doc.add_paragraph(paragrafo)
     
-    # --- RODAPÉ LEGAL (ATUALIZADO PARA CONDOMÍNIOS) ---
+    # --- RODAPÉ DE RESPONSABILIDADE (ALTERADO AQUI) ---
     doc.add_paragraph("_" * 50)
     legal_note = doc.add_paragraph()
-    run = legal_note.add_run("CONFORMIDADE LEGAL:\nA presente ata foi elaborada nos termos do Artigo 1.º do Decreto-Lei n.º 268/94, com as alterações introduzidas pela Lei n.º 8/2022, de 10 de janeiro, constituindo título executivo para todos os efeitos legais.")
-    run.font.size = Pt(8)
+    
+    texto_disclaimer = (
+        "NOTA DE RESPONSABILIDADE: O presente documento constitui uma minuta de auxílio redigida por Inteligência Artificial. "
+        "A sua validade legal e eficácia como título executivo (nos termos do DL n.º 268/94 e Lei n.º 8/2022) "
+        "dependem obrigatoriamente da revisão, aprovação e assinatura pela Mesa da Assembleia e Administração do Condomínio."
+    )
+    
+    run = legal_note.add_run(texto_disclaimer)
+    run.font.size = Pt(7) # Letra pequena
     run.font.italic = True
-    run.font.color.rgb = RGBColor(80, 80, 80)
+    run.font.color.rgb = RGBColor(100, 100, 100) # Cinzento
             
     buffer = BytesIO()
     doc.save(buffer)
@@ -224,14 +231,15 @@ with col2:
 
 # --- MOSTRAR RESULTADO SE JÁ EXISTIR NA MEMÓRIA ---
 if st.session_state["texto_ata_final"]:
-    st.success("✅ A sua ata está pronta e guardada abaixo.")
+    st.success("✅ A sua minuta de ata está pronta.")
     
-    # Aviso Legal Atualizado
+    # AVISO DE RESPONSABILIDADE (ALTERADO AQUI)
     st.markdown("""
     <div class="legal-box">
-    ⚖️ <strong>Conformidade Legal (Portugal):</strong><br> 
-    Ata gerada de acordo com o <strong>Artigo 1.º do Decreto-Lei n.º 268/94</strong> 
-    e atualizações da <strong>Lei n.º 8/2022</strong> (Regime da Propriedade Horizontal).
+    ⚖️ <strong>Aviso de Responsabilidade:</strong><br> 
+    Este ficheiro é uma <strong>minuta de trabalho</strong> gerada por IA. <br>
+    A AtaPro.pt fornece o serviço de transcrição e redação, mas a <strong>conferência do conteúdo e a validação jurídica final</strong> 
+    são da exclusiva responsabilidade da Administração do Condomínio, mediante a aposição das assinaturas legais.
     </div>
     """, unsafe_allow_html=True)
     
