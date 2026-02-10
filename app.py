@@ -37,15 +37,24 @@ st.markdown("""
            font-size: 1.2em; font-weight: bold;
         }
         [data-testid='stFileUploaderDropzone'] small {display: none;}
+        /* VISIBILIDADE REFORÇADA NO CSS */
         [data-testid='stFileUploaderDropzone']::after {
-           content: "Limite: 200MB por ficheiro • MP3, M4A, WAV";
-           font-size: 0.9em; display: block; text-align: center; margin-top: 5px; color: #333;
+           content: "⚠️ Apenas MP3 ou M4A • Máx: 200MB por ficheiro";
+           font-size: 1em; 
+           font-weight: bold;
+           display: block; 
+           text-align: center; 
+           margin-top: 10px; 
+           color: #d63031; /* Vermelho escuro para chamar atenção */
+           background-color: #ffeaea;
+           padding: 5px;
+           border-radius: 5px;
         }
         
         /* Caixa de Aviso Legal */
         .legal-box {
             font-size: 0.85em;
-            background-color: #fdf2f2; /* Cor ligeiramente avermelhada para alerta */
+            background-color: #fdf2f2;
             border-left: 4px solid #dc3545;
             padding: 12px;
             margin-top: 10px;
@@ -113,7 +122,7 @@ def criar_word(texto_ata):
         if paragrafo.strip():
             doc.add_paragraph(paragrafo)
     
-    # --- RODAPÉ DE RESPONSABILIDADE (ALTERADO AQUI) ---
+    # --- RODAPÉ DE RESPONSABILIDADE ---
     doc.add_paragraph("_" * 50)
     legal_note = doc.add_paragraph()
     
@@ -124,9 +133,9 @@ def criar_word(texto_ata):
     )
     
     run = legal_note.add_run(texto_disclaimer)
-    run.font.size = Pt(7) # Letra pequena
+    run.font.size = Pt(7)
     run.font.italic = True
-    run.font.color.rgb = RGBColor(100, 100, 100) # Cinzento
+    run.font.color.rgb = RGBColor(100, 100, 100)
             
     buffer = BytesIO()
     doc.save(buffer)
@@ -233,7 +242,7 @@ with col2:
 if st.session_state["texto_ata_final"]:
     st.success("✅ A sua minuta de ata está pronta.")
     
-    # AVISO DE RESPONSABILIDADE (ALTERADO AQUI)
+    # AVISO DE RESPONSABILIDADE
     st.markdown("""
     <div class="legal-box">
     ⚖️ <strong>Aviso de Responsabilidade:</strong><br> 
@@ -280,6 +289,9 @@ else:
 
     with st.expander("📱 Ajuda para iPhone/WhatsApp"):
         st.info("No iPhone ou WhatsApp: 'Partilhar' > 'Guardar em Ficheiros'.")
+    
+    # --- AVISO VISÍVEL SOBRE FICHEIROS ---
+    st.info("⚠️ **IMPORTANTE:** Carregue apenas ficheiros **MP3** ou **M4A**. Outros formatos (como WAV ou PDF) serão rejeitados para garantir rapidez. Limite: 200MB.")
 
     uploaded_files = st.file_uploader(
         "Selecione os ficheiros de áudio:", 
@@ -287,30 +299,39 @@ else:
     )
 
     if uploaded_files:
-        st.caption(f"📂 {len(uploaded_files)} ficheiro(s) selecionado(s).")
-        st.warning("⚠️ Nota: O limite é **200MB por ficheiro**.")
-
-        st.markdown("---")
-        st.subheader("🛡️ Privacidade e Termos")
+        # --- VERIFICAÇÃO DE FICHEIROS INCORRETOS ---
+        ficheiros_validos = True
+        for ficheiro in uploaded_files:
+            ext = os.path.splitext(ficheiro.name)[1].lower()
+            if ext not in ['.mp3', '.m4a']:
+                st.error(f"❌ ERRO: O ficheiro '{ficheiro.name}' tem um formato inválido ({ext}).")
+                st.error("Por favor, carregue apenas ficheiros **.mp3** ou **.m4a**.")
+                ficheiros_validos = False
         
-        st.markdown("""
-        <div>
-        <ul>
-            <li><strong>Segurança:</strong> Áudio processado via Google Enterprise (encriptado).</li>
-            <li><strong>Eliminação:</strong> Dados apagados imediatamente após a geração.</li>
-            <li><strong>Sem Histórico:</strong> Não guardamos cópias das atas.</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        autorizacao = st.checkbox("Li e aceito a Política de Privacidade.")
+        if ficheiros_validos:
+            st.caption(f"📂 {len(uploaded_files)} ficheiro(s) válido(s).")
+            
+            st.markdown("---")
+            st.subheader("🛡️ Privacidade e Termos")
+            
+            st.markdown("""
+            <div>
+            <ul>
+                <li><strong>Segurança:</strong> Áudio processado via Google Enterprise (encriptado).</li>
+                <li><strong>Eliminação:</strong> Dados apagados imediatamente após a geração.</li>
+                <li><strong>Sem Histórico:</strong> Não guardamos cópias das atas.</li>
+            </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            autorizacao = st.checkbox("Li e aceito a Política de Privacidade.")
 
-        if autorizacao:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("📝 GERAR ATA DE CONDOMÍNIO", type="primary"):
-                resultado = processar_ata(uploaded_files)
-                if resultado:
-                    st.session_state["texto_ata_final"] = resultado
-                    st.rerun() 
-        else:
-            st.info("👆 Aceite os termos para continuar.")
+            if autorizacao:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("📝 GERAR ATA DE CONDOMÍNIO", type="primary"):
+                    resultado = processar_ata(uploaded_files)
+                    if resultado:
+                        st.session_state["texto_ata_final"] = resultado
+                        st.rerun() 
+            else:
+                st.info("👆 Aceite os termos para continuar.")
