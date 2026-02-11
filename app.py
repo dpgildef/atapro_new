@@ -6,6 +6,7 @@ import time
 from io import BytesIO
 from docx import Document 
 from docx.shared import Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH # Importante para justificar texto
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -45,7 +46,7 @@ st.markdown("""
            display: block; 
            text-align: center; 
            margin-top: 10px; 
-           color: #d63031; /* Vermelho escuro para chamar atenção */
+           color: #d63031;
            background-color: #ffeaea;
            padding: 5px;
            border-radius: 5px;
@@ -109,19 +110,56 @@ except Exception:
     st.error("⚠️ ERRO CRÍTICO: Chave de API Google em falta.")
     st.stop()
 
-# --- 4. FUNÇÃO GERADORA DE WORD (.docx) ---
+# --- 4. FUNÇÃO GERADORA DE WORD (.docx) AVANÇADA ---
 def criar_word(texto_ata):
     doc = Document()
+    
+    # Estilo Global
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Arial'
+    font.size = Pt(11)
     
     # Título Principal
     heading = doc.add_heading('ATA DA ASSEMBLEIA DE CONDOMÍNIO', 0)
     heading.alignment = 1 # Centro
     
-    # Adiciona o texto gerado
+    # Processamento Inteligente do Texto (Markdown -> Word)
     for paragrafo in texto_ata.split('\n'):
         if paragrafo.strip():
-            doc.add_paragraph(paragrafo)
+            # Cria parágrafo
+            p = doc.add_paragraph()
+            # Justificar texto (Padrão Profissional)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            
+            # Lógica para detetar **negrito**
+            # Divide o texto pelos asteriscos
+            partes = paragrafo.split('**')
+            
+            for i, parte in enumerate(partes):
+                run = p.add_run(parte)
+                # Se o índice for ímpar (1, 3, 5...), é a parte que estava entre **
+                if i % 2 != 0:
+                    run.bold = True
+                    run.font.color.rgb = RGBColor(0, 0, 0) # Preto forte
+
+    # --- BLOCO DE ASSINATURAS (NOVO) ---
+    doc.add_paragraph("\n" * 2) # Espaço
+    table = doc.add_table(rows=1, cols=2)
+    table.autofit = True
     
+    # Assinatura Presidente
+    cell1 = table.cell(0, 0)
+    p1 = cell1.paragraphs[0]
+    p1.add_run("__________________________\nO Presidente da Mesa").bold = True
+    p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Assinatura Secretário
+    cell2 = table.cell(0, 1)
+    p2 = cell2.paragraphs[0]
+    p2.add_run("__________________________\nO Secretário").bold = True
+    p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
     # --- RODAPÉ DE RESPONSABILIDADE ---
     doc.add_paragraph("_" * 50)
     legal_note = doc.add_paragraph()
@@ -179,31 +217,39 @@ def processar_ata(files):
         status.write("✍️ A redigir a ata segundo a Lei n.º 8/2022...")
         model = genai.GenerativeModel("models/gemini-2.5-flash")
         
-        # --- PROMPT ESPECÍFICO PARA CONDOMÍNIOS ---
+        # --- PROMPT REFINADO PARA "ATA PERFEITA" ---
         prompt = """
-        Tu és um Administrador de Condomínios profissional em Portugal. 
-        A tua tarefa é redigir uma ATA DE ASSEMBLEIA DE CONDOMÍNIO rigorosa.
+        Tu és um Administrador de Condomínios e Jurista em Portugal. 
+        A tua tarefa é redigir uma ATA DE ASSEMBLEIA DE CONDOMÍNIO IMPECÁVEL.
 
-        BASE LEGAL:
-        Respeita o Decreto-Lei n.º 268/94 e a Lei n.º 8/2022.
+        REGRAS DE FORMATAÇÃO (Obrigatório):
+        - Usa **negrito** (entre dois asteriscos) para destacar Títulos, Votações e Valores Monetários.
+        - Não uses tabelas nem Markdown complexo (#), apenas texto limpo e negritos.
 
-        ESTRUTURA OBRIGATÓRIA:
-        1. TÍTULO: "ATA N.º [Ano]/[N.º]"
-        2. CABEÇALHO: 
-           - "Aos [Dia] dias de [Mês] de [Ano], reuniu-se a Assembleia de Condóminos do prédio sito em [Local]..."
-           - Indicar se é Ordinária ou Extraordinária.
-           - Indicar quem presidiu à mesa (Presidente/Secretário).
-        3. PRESENÇAS: Listar Condóminos presentes e representados (se dito no áudio).
-        4. ORDEM DE TRABALHOS: Pontos exatos da convocatória.
-        5. DELIBERAÇÕES (Muito Importante):
-           - Para cada ponto, descrever a discussão e a VOTAÇÃO.
-           - Usar termos: "Aprovado por unanimidade", "Aprovado por maioria", ou "Rejeitado".
-        6. ENCERRAMENTO: menção de que a ata vai ser assinada.
+        ESTRUTURA OBRIGATÓRIA DA ATA:
+        1. CABEÇALHO COMPLETO:
+           - Número da Ata, Data, Hora Início/Fim, Local exato.
+           - Tipo de Reunião (Ordinária/Extraordinária).
+           - Identificação do Presidente e Secretário.
+
+        2. PRESENÇAS E QUÓRUM (Crítico):
+           - Lista as frações presentes.
+           - **Calcula ou menciona a Permilagem/Percentagem total representada.**
+           - Declara explicitamente se "existe quórum constitutivo para deliberar".
+
+        3. ORDEM DE TRABALHOS:
+           - Copia exatamente os pontos discutidos.
+
+        4. DELIBERAÇÕES (Para cada ponto da Ordem de Trabalhos):
+           - **Discussão:** Resumo breve e impessoal.
+           - **Votação:** Discrimina claramente: "Votos a Favor (X permilagem)", "Contra (Fração Y)", "Abstenções".
+           - **Decisão:** Escreve em letras garrafais: **APROVADO POR UNANIMIDADE** ou **MAIORIA**.
+           - **Título Executivo:** Se houver dívidas ou valores aprovados, especifica o valor exato (ex: "1.200,00€") e prazos de pagamento para que a ata sirva de título executivo.
+
+        5. ENCERRAMENTO:
+           - "Nada mais havendo a tratar, deu-se por encerrada a sessão às [Hora]..."
         
-        IMPORTANTE: 
-        - Escreve em PT-PT.
-        - Sê objetivo. Identifica frações (ex: 1º Esq, R/C Drt) se forem mencionadas.
-        - Não uses Markdown complexo, usa texto limpo.
+        Escreve em Português de Portugal (PT-PT) formal e jurídico.
         """
         
         response = model.generate_content([prompt] + arquivos_gemini)
